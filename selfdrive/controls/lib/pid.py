@@ -1,6 +1,7 @@
 import numpy as np
 from common.numpy_fast import clip, interp
 from common.op_params import opParams
+from common.realtime import DT_CTRL
 from selfdrive.config import Conversions as CV
 
 
@@ -19,6 +20,7 @@ class LatPIDController():
     self._k_i = k_i  # integral gain
     self._k_d = k_d  # derivative gain
     self.k_f = k_f  # feedforward gain
+    self.op_params = opParams()
 
     self.pos_limit = pos_limit
     self.neg_limit = neg_limit
@@ -33,15 +35,18 @@ class LatPIDController():
 
   @property
   def k_p(self):
-    return interp(self.speed, self._k_p[0], self._k_p[1])
+    return self.op_params.get('lat_p')
+    # return interp(self.speed, self._k_p[0], self._k_p[1])
 
   @property
   def k_i(self):
-    return interp(self.speed, self._k_i[0], self._k_i[1])
+    return self.op_params.get('lat_i')
+    # return interp(self.speed, self._k_i[0], self._k_i[1])
 
   @property
   def k_d(self):
-    return interp(self.speed, self._k_d[0], self._k_d[1])
+    return self.op_params.get('lat_d')
+    # return interp(self.speed, self._k_d[0], self._k_d[1])
 
   def _check_saturation(self, control, check_saturation, error):
     saturated = (control < self.neg_limit) or (control > self.pos_limit)
@@ -63,6 +68,7 @@ class LatPIDController():
     self.saturated = False
     self.control = 0
     self.errors = []
+    self.delayed_output = 0.
 
   def update(self, setpoint, measurement, speed=0.0, check_saturation=True, override=False, feedforward=0., deadzone=0., freeze_integrator=False):
     self.speed = speed
@@ -95,6 +101,10 @@ class LatPIDController():
     control = self.p + self.f + self.i + d
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
+
+    alpha = 1. - DT_CTRL / (self.op_params.get('lat_rc') + DT_CTRL)
+    self.delayed_output = self.delayed_output * alpha + control * (1. - alpha)
+    control = float(self.delayed_output)
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
