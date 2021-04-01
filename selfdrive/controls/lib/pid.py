@@ -98,13 +98,13 @@ class LatPIDController():
          not freeze_integrator:
         self.i = i
 
-    control = self.p + self.f + self.i + d
+    control = self.p + self.i + d
     if self.convert is not None:
       control = self.convert(control, speed=self.speed)
 
     alpha = 1. - DT_CTRL / (self.op_params.get('lat_rc') + DT_CTRL)
     self.delayed_output = self.delayed_output * alpha + control * (1. - alpha)
-    control = float(self.delayed_output)
+    control = float(self.delayed_output) + self.f
 
     self.saturated = self._check_saturation(control, check_saturation, error)
 
