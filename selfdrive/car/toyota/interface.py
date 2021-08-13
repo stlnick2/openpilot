@@ -22,7 +22,7 @@ class CarInterface(CarInterfaceBase):
     op_params = opParams()
     use_steering_model = op_params.get('use_steering_model')
     use_lqr = not use_steering_model and op_params.get('use_lqr')
-    prius_use_pid = not use_steering_model and op_params.get('prius_use_pid')
+    prius_use_pid = use_steering_model or op_params.get('prius_use_pid')
     corollaTSS2_use_indi = not use_steering_model and op_params.get('corollaTSS2_use_indi')
     rav4TSS2_use_indi = not use_steering_model and op_params.get('rav4TSS2_use_indi')
 
