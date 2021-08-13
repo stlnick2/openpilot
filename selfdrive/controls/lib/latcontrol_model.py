@@ -69,7 +69,8 @@ class LatControlModel:
       model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
 
       output_steer = self.predict(model_input)[0]
-      output_steer = float(clip(output_steer, neg_limit, pos_limit))
+      output_steer = clip(output_steer, neg_limit, pos_limit)
+      output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
       model_log.active = True
       model_log.output = output_steer

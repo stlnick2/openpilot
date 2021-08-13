@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import numpy as np
 from cereal import car
 from selfdrive.config import Conversions as CV
 from selfdrive.car.toyota.values import Ecu, CAR, TSS2_CAR, NO_DSU_CAR, MIN_ACC_SPEED, PEDAL_HYST_GAP, CarControllerParams
@@ -39,7 +40,7 @@ class CarInterface(CarInterfaceBase):
     if not prius_use_pid:
       CARS_NOT_PID.append(CAR.PRIUS)
 
-    if candidate not in CARS_NOT_PID and not use_lqr and not use_steering_model:  # These cars use LQR/INDI
+    if candidate not in CARS_NOT_PID and not use_lqr:  # These cars use LQR/INDI
       ret.lateralTuning.init('pid')
       ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
 
@@ -351,8 +352,15 @@ class CarInterface(CarInterfaceBase):
 
     elif use_steering_model:
       ret.lateralTuning.init('model')
-      ret.lateralTuning.model.name = "corolla_model_v5"
+      ret.lateralTuning.model.name = 'corolla_model_v5'
       ret.lateralTuning.model.useRates = False
+      ret.lateralTuning.model.multiplier = 1.
+      # use kf from PID to calculate torque multiplier
+      # TODO: feed this into the model so it can extrapolate accurately
+      if ret.lateralTuning.which() == 'pid':
+        COROLLA_KF = 0.00006908923778520113
+        if not np.isclose(ret.lateralTuning.pid.kf, 0.):
+          ret.lateralTuning.model.multiplier = ret.lateralTuning.pid.kf / COROLLA_KF
 
     ret.centerToFront = ret.wheelbase * 0.44
 
