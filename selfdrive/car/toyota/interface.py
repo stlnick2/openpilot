@@ -20,11 +20,11 @@ class CarInterface(CarInterfaceBase):
     ret = CarInterfaceBase.get_std_params(candidate, fingerprint)
 
     op_params = opParams()
-    use_lqr = op_params.get('use_lqr')
     use_steering_model = op_params.get('use_steering_model')
-    prius_use_pid = op_params.get('prius_use_pid')
-    corollaTSS2_use_indi = op_params.get('corollaTSS2_use_indi')
-    rav4TSS2_use_indi = op_params.get('rav4TSS2_use_indi')
+    use_lqr = not use_steering_model and op_params.get('use_lqr')
+    prius_use_pid = not use_steering_model and op_params.get('prius_use_pid')
+    corollaTSS2_use_indi = not use_steering_model and op_params.get('corollaTSS2_use_indi')
+    rav4TSS2_use_indi = not use_steering_model and op_params.get('rav4TSS2_use_indi')
 
     ret.carName = "toyota"
     ret.safetyModel = car.CarParams.SafetyModel.toyota
@@ -96,6 +96,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.init('model')
       ret.lateralTuning.model.name = "corolla_model_v5"
       ret.lateralTuning.model.useRates = False  # TODO: makes model sluggish, see comments in latcontrol_model.py
+      ret.lateralTuning.model.multiplier = 1.
 
     elif candidate == CAR.LEXUS_RX:
       stop_and_go = True
@@ -337,7 +338,19 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 4305. * CV.LB_TO_KG + STD_CARGO_KG
       ret.lateralTuning.pid.kf = 0.00007818594
 
-    if use_lqr:
+    if use_steering_model:
+      ret.lateralTuning.init('model')
+      ret.lateralTuning.model.name = 'corolla_model_v5'
+      ret.lateralTuning.model.useRates = False
+      ret.lateralTuning.model.multiplier = 1.
+      # use kf from PID to calculate torque multiplier
+      # TODO: feed this into the model so it can extrapolate accurately
+      if ret.lateralTuning.which() == 'pid':
+        COROLLA_KF = 0.00006908923778520113
+        if not np.isclose(ret.lateralTuning.pid.kf, 0.):
+          ret.lateralTuning.model.multiplier = ret.lateralTuning.pid.kf / COROLLA_KF
+
+    elif use_lqr:
       ret.lateralTuning.init('lqr')
 
       ret.lateralTuning.lqr.scale = 1500.0
@@ -349,18 +362,6 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.lqr.k = [-110.73572306, 451.22718255]
       ret.lateralTuning.lqr.l = [0.3233671, 0.3185757]
       ret.lateralTuning.lqr.dcGain = 0.002237852961363602
-
-    elif use_steering_model:
-      ret.lateralTuning.init('model')
-      ret.lateralTuning.model.name = 'corolla_model_v5'
-      ret.lateralTuning.model.useRates = False
-      ret.lateralTuning.model.multiplier = 1.
-      # use kf from PID to calculate torque multiplier
-      # TODO: feed this into the model so it can extrapolate accurately
-      if ret.lateralTuning.which() == 'pid':
-        COROLLA_KF = 0.00006908923778520113
-        if not np.isclose(ret.lateralTuning.pid.kf, 0.):
-          ret.lateralTuning.model.multiplier = ret.lateralTuning.pid.kf / COROLLA_KF
 
     ret.centerToFront = ret.wheelbase * 0.44
 
