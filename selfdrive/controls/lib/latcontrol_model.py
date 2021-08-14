@@ -73,7 +73,9 @@ class LatControlModel:
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
       if output_steer < 0:  # model doesn't like right curves
-        output_steer *= interp(CS.vEgo, [17.8816, 26.8224], [1.37, 1.25])  # 40 to 60 mph
+        multiplier = interp(CS.vEgo, [17.8816, 26.8224], [1.37, 1.25])  # 40 to 60 mph
+        multiplier *= interp(abs(CS.steeringAngleDeg), [0, 25, 35], [.5, 1, .1])
+        output_steer *= multiplier
 
       model_log.active = True
       model_log.output = output_steer
