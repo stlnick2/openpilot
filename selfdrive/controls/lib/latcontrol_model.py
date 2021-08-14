@@ -59,12 +59,12 @@ class LatControlModel:
       pos_limit = steers_max
       neg_limit = -steers_max
 
-      steering_rate_des = VM.get_steer_from_curvature(-desired_curvature_rate, CS.vEgo)
+      rate_des = VM.get_steer_from_curvature(-desired_curvature_rate, CS.vEgo)
 
       # TODO: Can be sluggish when model is given rates, the issue is probably with the training data,
       # specifically the disturbances/perturbations fed into the model to recover from large errors
       # Basically, figure out a better way to train the model to recover without random samples and using a PF controller as the output
-      rate_des = steering_rate_des if self.use_rates else 0
+      rate_des = rate_des if self.use_rates else 0
       rate = CS.steeringRateDeg if self.use_rates else 0
       model_input = [angle_steers_des, CS.steeringAngleDeg, rate_des, rate, CS.vEgo]
 
@@ -73,9 +73,9 @@ class LatControlModel:
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
 
       if output_steer < 0:  # model doesn't like right curves
-        multiplier = interp(CS.vEgo, [17.8816, 26.8224], [1.37, 1.25])  # 40 to 60 mph
-        multiplier *= interp(abs(CS.steeringAngleDeg), [0, 25, 35], [.5, 1, .1])
-        output_steer *= multiplier
+        _90_degree_bp = interp(CS.vEgo, [17.8816, 31.2928], [1., 1.1])  # 40 to 70 mph, 90 degree brakepoint
+        multiplier = interp(abs(CS.steeringAngleDeg), [0, 90.], [1.27, _90_degree_bp])
+        output_steer = float(output_steer * multiplier)
 
       model_log.active = True
       model_log.output = output_steer
