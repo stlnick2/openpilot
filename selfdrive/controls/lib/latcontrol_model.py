@@ -3,7 +3,7 @@ import numpy as np
 from common.basedir import BASEDIR
 from selfdrive.controls.lib.drive_helpers import get_steer_max
 from cereal import log
-from common.numpy_fast import clip
+from common.numpy_fast import clip, interp
 from common.realtime import DT_CTRL
 
 
@@ -71,6 +71,9 @@ class LatControlModel:
       output_steer = self.predict(model_input)[0]
       output_steer = clip(output_steer, neg_limit, pos_limit)
       output_steer = float(output_steer * CP.lateralTuning.model.multiplier)
+
+      if output_steer < 0:  # model doesn't like right curves
+        output_steer *= interp(CS.vEgo, [17.8816, 26.8224], [1.37, 1.25])  # 40 to 60 mph
 
       model_log.active = True
       model_log.output = output_steer
