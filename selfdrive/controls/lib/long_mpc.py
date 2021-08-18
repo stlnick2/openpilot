@@ -6,6 +6,7 @@ from common.realtime import sec_since_boot
 from selfdrive.controls.lib.longitudinal_mpc_lib import libmpc_py
 from selfdrive.controls.lib.drive_helpers import LON_MPC_N
 from selfdrive.modeld.constants import T_IDXS
+from common.op_params import opParams
 
 
 class LongitudinalMpc():
@@ -16,6 +17,7 @@ class LongitudinalMpc():
     self.status = True
     self.min_a = -3.5
     self.max_a = 1.2
+    self.op_params = opParams()
 
 
   def reset_mpc(self):
@@ -47,12 +49,14 @@ class LongitudinalMpc():
 
   def update(self, carstate, radarstate, modelstate, v_cruise):
     v_cruise_clipped = np.clip(v_cruise, self.cur_state[0].v_ego - 10., self.cur_state[0].v_ego + 10.0)
-    # poss = v_cruise_clipped * np.array(T_IDXS[:LON_MPC_N+1])
-    # speeds = v_cruise_clipped * np.ones(LON_MPC_N+1)
-    # accels = np.zeros(LON_MPC_N+1)
-    poss = np.minimum(np.array(modelstate.position.x)[:LON_MPC_N+1], v_cruise_clipped * np.array(T_IDXS[:LON_MPC_N+1]))
-    speeds = np.minimum(np.array(modelstate.velocity.x)[:LON_MPC_N+1], v_cruise_clipped)
-    accels = np.zeros(LON_MPC_N + 1)
+    if not self.op_params.get('model_cruise'):
+      poss = v_cruise_clipped * np.array(T_IDXS[:LON_MPC_N+1])
+      speeds = v_cruise_clipped * np.ones(LON_MPC_N+1)
+      accels = np.zeros(LON_MPC_N+1)
+    else:
+      poss = np.minimum(np.array(modelstate.position.x)[:LON_MPC_N+1], v_cruise_clipped * np.array(T_IDXS[:LON_MPC_N+1]))
+      speeds = np.minimum(np.array(modelstate.velocity.x)[:LON_MPC_N+1], v_cruise_clipped)
+      accels = np.zeros(LON_MPC_N + 1)
     self.update_with_xva(poss, speeds, accels)
 
   def update_with_xva(self, poss, speeds, accels):
