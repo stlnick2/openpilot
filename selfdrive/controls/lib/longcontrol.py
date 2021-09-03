@@ -2,7 +2,7 @@ from cereal import log
 from common.numpy_fast import clip, interp
 from selfdrive.controls.lib.drive_helpers import CONTROL_N
 from selfdrive.modeld.constants import T_IDXS
-from selfdrive.controls.lib.pid import LongPIDController
+from selfdrive.controls.lib.pid import PIDController
 from selfdrive.controls.lib.dynamic_gas import DynamicGas
 from common.op_params import opParams
 
@@ -61,12 +61,13 @@ class LongControl():
     # kdBP = [0., 16., 35.]
     # kdV = [0.08, 1.215, 2.51]
 
-    self.pid = LongPIDController((CP.longitudinalTuning.kpBP, CP.longitudinalTuning.kpV),
-                                 (CP.longitudinalTuning.kiBP, CP.longitudinalTuning.kiV),
-                                 ([0], [0]),
-                                 rate=RATE,
-                                 sat_limit=0.8,
-                                 convert=compute_gb)
+    self.pid = PIDController((CP.longitudinalTuning.kpBP, CP.longitudinalTuning.kpV),
+                             (CP.longitudinalTuning.kiBP, CP.longitudinalTuning.kiV),
+                             (CP.longitudinalTuning.kdBP, CP.longitudinalTuning.kdV),
+                             rate=RATE,
+                             sat_limit=0.8,
+                             derivative_period=100,  # 1 second
+                             convert=compute_gb)
     self.v_pid = 0.0
     self.last_output_gb = 0.0
 
@@ -123,6 +124,7 @@ class LongControl():
       prevent_overshoot = not CP.stoppingControl and CS.vEgo < 1.5 and v_target_future < 0.7
       deadzone = interp(v_ego_pid, CP.longitudinalTuning.deadzoneBP, CP.longitudinalTuning.deadzoneV)
 
+      self.pid.derivative_period = round(np.interp(CS.vEgo, [5, 35], [0.5, 2.]) * RATE)  # multiply by 100 to convert from time to frames
       output_gb = self.pid.update(self.v_pid, v_ego_pid, speed=v_ego_pid, deadzone=deadzone, feedforward=a_target, freeze_integrator=prevent_overshoot)
 
       if prevent_overshoot:
