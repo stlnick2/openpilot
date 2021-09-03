@@ -124,6 +124,7 @@ class LongControl():
       prevent_overshoot = not CP.stoppingControl and CS.vEgo < 1.5 and v_target_future < 0.7
       deadzone = interp(v_ego_pid, CP.longitudinalTuning.deadzoneBP, CP.longitudinalTuning.deadzoneV)
 
+      # Car can accelerate more easily at low speeds
       self.pid.derivative_period = round(np.interp(CS.vEgo, [5, 35], [0.5, 2.]) * RATE)  # multiply by 100 to convert from time to frames
       output_gb = self.pid.update(self.v_pid, v_ego_pid, speed=v_ego_pid, deadzone=deadzone, feedforward=a_target, freeze_integrator=prevent_overshoot)
 
