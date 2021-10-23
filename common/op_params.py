@@ -112,14 +112,14 @@ class opParams:
                         # 'lane_speed_alerts': Param('silent', str, 'Can be: (\'off\', \'silent\', \'audible\')\n'
                         #                                           'Whether you want openpilot to alert you of faster-traveling adjacent lanes'),
                         'upload_on_hotspot': Param(False, bool, 'If False, openpilot will not upload driving data while connected to your phone\'s hotspot'),
-                        # 'enable_long_derivative': Param(False, bool, 'If you have longitudinal overshooting, enable this! This enables derivative-based\n'
-                        #                                              'integral wind-down to help reduce overshooting within the long PID loop'),
                         'disengage_on_gas': Param(False, bool, 'Whether you want openpilot to disengage on gas input or not'),
                         'update_behavior': Param('alert', str, 'Can be: (\'off\', \'alert\', \'auto\') without quotes\n'
                                                                'off will never update, alert shows an alert on-screen\n'
                                                                'auto will reboot the device when an update is seen', static=True),
                         'dynamic_gas': Param(False, bool, 'Whether to use dynamic gas if your car is supported'),
                         'hide_auto_df_alerts': Param(False, bool, 'Hides the alert that shows what profile the model has chosen'),
+                        'df_button_alerts': Param('audible', str, 'Can be: (\'off\', \'silent\', \'audible\')\n'
+                                                                  'How you want to be alerted when you change your dynamic following profile'),
                         'log_auto_df': Param(False, bool, 'Logs dynamic follow data for auto-df', static=True),
                         # 'dynamic_camera_offset': Param(False, bool, 'Whether to automatically keep away from oncoming traffic.\n'
                         #                                             'Works from 35 to ~60 mph (requires radar)'),
@@ -127,7 +127,7 @@ class opParams:
                         'support_white_panda': Param(False, bool, 'Enable this to allow engagement with the deprecated white panda.\n'
                                                                   'localizer might not work correctly', static=True),
                         'disable_charging': Param(30, NUMBER, 'How many hours until charging is disabled while idle', static=True),
-
+                        'hide_model_long': Param(False, bool, 'Enable this to hide the Model Long button on the screen', static=True),
                         'prius_use_pid': Param(False, bool, 'This enables the PID lateral controller with new a experimental derivative tune\n'
                                                             'False: stock INDI, True: TSS2-tuned PID', static=True),
                         'use_lqr': Param(False, bool, 'Enable this to use LQR as your lateral controller over default with any car', static=True),
@@ -136,10 +136,12 @@ class opParams:
                                                                  'Warning: the model may behave unexpectedly at any time, so always pay attention', static=True),
                         'corollaTSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 Corolla', static=True),
                         'rav4TSS2_use_indi': Param(False, bool, 'Enable this to use INDI for lat with your TSS2 RAV4', static=True),
-                        'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this', static=True)}
+                        'standstill_hack': Param(False, bool, 'Some cars support stop and go, you just need to enable this', static=True),
+                        'toyota_distance_btn': Param(False, bool, 'Set to True to use the steering wheel distance button to control the dynamic follow profile\n'
+                                                                  'Only works on Toyota TSS2', static=True)}
 
-    self._to_delete = ['long_accel_delay', 'accel_lag_compensation']  # a list of unused params you want to delete from users' params file
-    self._to_reset = ['update_behavior']  # a list of params you want reset to their default values
+    self._to_delete = ['enable_long_derivative']  # a list of unused params you want to delete from users' params file
+    self._to_reset = []  # a list of params you want reset to their default values
     self._run_init()  # restores, reads, and updates params
 
   def _run_init(self):  # does first time initializing of default params

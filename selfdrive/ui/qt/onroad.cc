@@ -1,15 +1,15 @@
 #include "selfdrive/ui/qt/onroad.h"
 
-#include <iostream>
 #include <QDebug>
 
-#include "selfdrive/common/swaglog.h"
+#include "selfdrive/common/util.h"
 #include "selfdrive/common/timing.h"
 #include "selfdrive/ui/paint.h"
 #include "selfdrive/ui/qt/util.h"
 #ifdef ENABLE_MAPS
 #include "selfdrive/ui/qt/maps/map.h"
 #endif
+
 
 OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   QVBoxLayout *main_layout  = new QVBoxLayout(this);
@@ -18,22 +18,21 @@ OnroadWindow::OnroadWindow(QWidget *parent) : QWidget(parent) {
   stacked_layout->setStackingMode(QStackedLayout::StackAll);
   main_layout->addLayout(stacked_layout);
 
-  // old UI on bottom
-  nvg = new NvgWindow(this);
-  QObject::connect(nvg, &NvgWindow::resizeSignal, [=](int w, int h){
+  nvg = new NvgWindow(VISION_STREAM_RGB_BACK, this);
+  QObject::connect(nvg, &NvgWindow::resizeSignal, [=](int w){
     buttons->setFixedWidth(w);
   });
   QObject::connect(this, &OnroadWindow::updateStateSignal, nvg, &NvgWindow::updateState);
+
+  buttons = new ButtonsWindow(this);
+  QObject::connect(this, &OnroadWindow::updateStateSignal, buttons, &ButtonsWindow::updateState);
+  stacked_layout->addWidget(buttons);
 
   QWidget * split_wrapper = new QWidget;
   split = new QHBoxLayout(split_wrapper);
   split->setContentsMargins(0, 0, 0, 0);
   split->setSpacing(0);
   split->addWidget(nvg);
-
-  buttons = new ButtonsWindow(this);
-  QObject::connect(this, &OnroadWindow::updateStateSignal, buttons, &ButtonsWindow::updateState);
-  stacked_layout->addWidget(buttons);
 
   stacked_layout->addWidget(split_wrapper);
 
@@ -107,6 +106,10 @@ void OnroadWindow::offroadTransition(bool offroad) {
 #endif
 
   alerts->updateAlert({}, bg);
+
+  // update stream type
+  bool wide_cam = Hardware::TICI() && Params().getBool("EnableWideCamera");
+  nvg->setStreamType(wide_cam ? VISION_STREAM_RGB_WIDE : VISION_STREAM_RGB_BACK);
 }
 
 void OnroadWindow::paintEvent(QPaintEvent *event) {
@@ -136,6 +139,11 @@ ButtonsWindow::ButtonsWindow(QWidget *parent) : QWidget(parent) {
   btns_layout->addWidget(mlButton, 0, Qt::AlignHCenter | Qt::AlignBottom);
   btns_layout->addStretch(3);
 
+  std::string hide_model_long = util::read_file("/data/community/params/hide_model_long");
+  if (hide_model_long == "true"){
+    mlButton->hide();
+  }
+
   dfButton = new QPushButton("DF\nprofile");
   QObject::connect(dfButton, &QPushButton::clicked, [=]() {
     QUIState::ui_state.scene.dfButtonStatus = dfStatus < 3 ? dfStatus + 1 : 0;  // wrap back around
@@ -143,6 +151,10 @@ ButtonsWindow::ButtonsWindow(QWidget *parent) : QWidget(parent) {
   dfButton->setFixedWidth(200);
   dfButton->setFixedHeight(200);
   btns_layout->addWidget(dfButton, 0, Qt::AlignRight);
+
+  if (QUIState::ui_state.enable_distance_btn) {
+    dfButton->hide();
+  }
 
   setStyleSheet(R"(
     QPushButton {
@@ -161,10 +173,12 @@ void ButtonsWindow::updateState(const UIState &s) {
     dfStatus = s.scene.dfButtonStatus;
     dfButton->setStyleSheet(QString("font-size: 45px; border-radius: 100px; border-color: %1").arg(dfButtonColors.at(dfStatus)));
 
-    MessageBuilder msg;
-    auto dfButtonStatus = msg.initEvent().initDynamicFollowButton();
-    dfButtonStatus.setStatus(dfStatus);
-    QUIState::ui_state.pm->send("dynamicFollowButton", msg);
+    if (!QUIState::ui_state.enable_distance_btn) {
+      MessageBuilder msg;
+      auto dfButtonStatus = msg.initEvent().initDynamicFollowButton();
+      dfButtonStatus.setStatus(dfStatus);
+      QUIState::ui_state.pm->send("dynamicFollowButton", msg);
+    }
   }
 
   if (mlEnabled != s.scene.mlButtonEnabled) {  // update model longitudinal button
@@ -237,18 +251,8 @@ void OnroadAlerts::paintEvent(QPaintEvent *event) {
   }
 }
 
-
-NvgWindow::NvgWindow(QWidget *parent) : QOpenGLWidget(parent) {
-  setAttribute(Qt::WA_OpaquePaintEvent);
-}
-
-NvgWindow::~NvgWindow() {
-  makeCurrent();
-  doneCurrent();
-}
-
 void NvgWindow::initializeGL() {
-  initializeOpenGLFunctions();
+  CameraViewWidget::initializeGL();
   qInfo() << "OpenGL version:" << QString((const char*)glGetString(GL_VERSION));
   qInfo() << "OpenGL vendor:" << QString((const char*)glGetString(GL_VENDOR));
   qInfo() << "OpenGL renderer:" << QString((const char*)glGetString(GL_RENDERER));
@@ -259,23 +263,25 @@ void NvgWindow::initializeGL() {
 }
 
 void NvgWindow::updateState(const UIState &s) {
-  // Connecting to visionIPC requires opengl to be current
-  if (s.vipc_client->connected) {
-    makeCurrent();
+  // TODO: make camerad startup faster then remove this
+  if (s.scene.started) {
+    if (isVisible() != vipc_client->connected) {
+      setVisible(vipc_client->connected);
+    }
+    if (!isVisible()) {
+      updateFrame();
+    }
   }
-  if (isVisible() != s.vipc_client->connected) {
-    setVisible(s.vipc_client->connected);
-  }
-  repaint();
-}
-
-void NvgWindow::resizeGL(int w, int h) {
-  ui_resize(&QUIState::ui_state, w, h);
-  emit resizeSignal(w, h);  // for ButtonsWindow
 }
 
 void NvgWindow::paintGL() {
-  ui_draw(&QUIState::ui_state, width(), height());
+  CameraViewWidget::paintGL();
+  const int _width = width();
+  if (prev_width != _width) {
+    emit resizeSignal(_width);  // for ButtonsWindow
+    prev_width = _width;
+  }
+  ui_draw(&QUIState::ui_state, _width, height());
 
   double cur_draw_t = millis_since_boot();
   double dt = cur_draw_t - prev_draw_t;
